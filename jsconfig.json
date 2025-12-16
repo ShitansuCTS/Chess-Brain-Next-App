@@ -1,0 +1,8 @@
+{
+  "compilerOptions": {
+    "baseUrl": ".",           // THIS IS REQUIRED
+    "paths": {
+      "@/*": ["./*"]
+    }
+  }
+}
