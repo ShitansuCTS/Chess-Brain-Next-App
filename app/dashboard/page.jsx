@@ -81,6 +81,8 @@ export default function DashboardPage() {
         router.refresh();
     };
 
+
+
     if (loading) {
         return (
             <div className="min-h-screen flex items-center justify-center text-gray-500">
@@ -176,6 +178,13 @@ export default function DashboardPage() {
                                     <p className="text-sm text-gray-500">
                                         Date: {s.date} | Time: {s.startTime} - {s.endTime}
                                     </p>
+                                    {/* 👇 JOIN SESSION LINK (CORRECT PLACE) */}
+                                    <a
+                                        href={`/session/${s._id}`}
+                                        className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
+                                    >
+                                        Join
+                                    </a>
                                 </li>
                             ))}
                         </ul>
