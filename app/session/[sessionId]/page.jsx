@@ -1,51 +1,89 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useRef, useState, useEffect } from "react";
+import dynamic from "next/dynamic";
+import { Chess } from "chess.js";
 import { connectSocket } from "../../../lib/socket";
+import { useParams } from "next/navigation";
+
+const Chessboard = dynamic(
+  () => import("react-chessboard").then((mod) => mod.Chessboard),
+  { ssr: false }
+);
 
 export default function SessionRoom() {
   const { sessionId } = useParams();
-  const router = useRouter();
 
-  const [socket, setSocket] = useState(null);
-  const [status, setStatus] = useState("Connecting...");
+  const gameRef = useRef(new Chess());
+  const socketRef = useRef(null);
 
+  const [fen, setFen] = useState(gameRef.current.fen());
+
+  // 🔌 CONNECT SOCKET
   useEffect(() => {
     const init = async () => {
-      // 1️⃣ Get auth token (cookie)
+      // 1️⃣ Get logged-in user + token
       const res = await fetch("/api/auth/me", {
         credentials: "include",
       });
 
       if (!res.ok) {
-        router.push("/login");
+        console.error("Not authenticated");
         return;
       }
 
       const data = await res.json();
 
-      // 2️⃣ Connect socket
-      const sock = connectSocket(data.token);
-      setSocket(sock);
+      // 2️⃣ Connect socket WITH token
+      const socket = connectSocket(data.token);
+      socketRef.current = socket;
 
-      // 3️⃣ Join session room
-      sock.emit("join-room", { roomId: sessionId });
-      setStatus("Connected to room");
+      // 3️⃣ Join room
+      socket.emit("join-room", { roomId: sessionId });
+
+      // 4️⃣ Listen for opponent moves
+      socket.on("move", ({ move }) => {
+        console.log("Received move:", move);
+        gameRef.current.move(move);
+        setFen(gameRef.current.fen());
+      });
     };
 
     init();
 
-    return () => {
-      if (socket) socket.disconnect();
-    };
+    return () => socketRef.current?.disconnect();
   }, [sessionId]);
 
+
+  // ♟️ LOCAL MOVE
+  const onPieceDrop = (sourceSquare, targetSquare) => {
+    const move = {
+      from: sourceSquare,
+      to: targetSquare,
+      promotion: "q",
+    };
+
+    const result = gameRef.current.move(move);
+    if (!result) return false;
+
+    setFen(gameRef.current.fen());
+
+    // 📡 SEND MOVE TO OTHER USER
+    socketRef.current.emit("move", {
+      roomId: sessionId,
+      move,
+    });
+
+    return true;
+  };
+
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-100">
-      <h1 className="text-xl font-semibold">Live Session</h1>
-      <p className="mt-2 text-gray-600">Session ID: {sessionId}</p>
-      <p className="mt-4 text-green-600">{status}</p>
+    <div className="min-h-screen flex items-center justify-center">
+      <Chessboard
+        position={fen}
+        onPieceDrop={onPieceDrop}
+        boardWidth={420}
+      />
     </div>
   );
 }
